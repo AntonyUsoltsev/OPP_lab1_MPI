@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     MPI_Get_processor_name(processor_name, &name_len);
 
     // Print off a hello world message
-    sleep(world_rank);
+    //sleep(world_rank);
     printf("Hello from processor %s, rank %d out of %d processors\n", processor_name, world_rank, world_size);
 
     // Finalize the MPI environment.

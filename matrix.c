@@ -1,8 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <unistd.h>
-//#include "mpi.h"
 #include <memory.h>
 #include <math.h>
 #include <time.h>
@@ -53,7 +50,8 @@ void fill_matrix(double *A, const int height, const int width) {
 //    }
 //}
 
-void mult_matr_on_vect(const double *A, const int height, const int width, const double *vect, const int vect_len, double *res) {
+void mult_matr_on_vect(const double *A, const int height, const int width, const double *vect, const int vect_len,
+                       double *res) {
     if (width != vect_len) {
         return;
     }
@@ -129,10 +127,6 @@ int main(int argc, char **argv) {
 
     int flag = 1;
     int size, rank;
-//    MPI_Init(&argc, &argv);
-//    MPI_Comm_size(MPI_COMM_WORLD, &size);
-//    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
     clock_t start = clock();
     while (flag) {
         mult_matr_on_vect(A, N, N, x_prev, N, x_next);
@@ -156,9 +150,7 @@ int main(int argc, char **argv) {
     }
     clock_t end = clock();
 
-//    MPI_Finalize();
-
-    printf("%d\n", end - start);
+    printf("%ld\n", end - start);
     print_vector(x_next, N);
 
 }
