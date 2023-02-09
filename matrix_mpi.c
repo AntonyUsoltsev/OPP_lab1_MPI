@@ -1,14 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <unistd.h>
 #include "mpi.h"
-#include <memory.h>
 #include <math.h>
 #include <time.h>
-#include <unistd.h>
 
-#define N 6
+#define N 150
 #define t 0.01
 #define eps 0.01
 #define RANK_ROOT 0
@@ -113,22 +110,22 @@ int *set_offset(int size, int matrix_height) {
         }
         return offset_arr;
     }
-    int a1 = matrix_height / size;
-    int a2 = matrix_height % size;
-    offset_arr[0] = 0;
-    for (int i = 1; i < size - a2 + 1; i++) {
-        offset_arr[i] = a1;
-    }
-    for (int i = size - a2 + 1; i < size + 1; i++) {
-        offset_arr[i] = a1 + 1;
-    }
-    for (int i = 1; i < size + 1; i++) {
-        offset_arr[i] = offset_arr[i] + offset_arr[i - 1];
-    }
+    int quot = matrix_height / size;
+    int remain = matrix_height % size;
 
+    for (int i = 0; i < size + 1; i++) {
+        if (i == 0) {
+            offset_arr[i] = 0;
+        } else if (i < size - remain + 1) {
+            offset_arr[i] = offset_arr[i - 1] + quot;
+        } else {
+            offset_arr[i] = offset_arr[i - 1] + quot + 1;
+        }
+    }
     return offset_arr;
-
 }
+
+
 
 int run(int comm_size, int comm_rank) {
     double *b = calloc(N, sizeof(double));
@@ -137,6 +134,7 @@ int run(int comm_size, int comm_rank) {
 
     int *offset_arr = set_offset(comm_size, N);
     int comm_offset = (offset_arr[comm_rank + 1] - offset_arr[comm_rank]);
+
     double *A = NULL;
     double *x_prev = calloc(N, sizeof(double));
     fill_vector(x_prev, N, 0);
@@ -146,73 +144,56 @@ int run(int comm_size, int comm_rank) {
     if (comm_rank == RANK_ROOT) {
         A = calloc(N * N, sizeof(double));
         fill_matrix(A, N, N);
-        print_matrix(A, N, N);
-        print_vector(b, N);
-
-        double *tmp = calloc(N, sizeof(double));
-        //print_vector(x_prev, N);
-
-        for (int i = 0; i < comm_size + 1; i++) {
-            printf("%d ", offset_arr[i]);
-        }
-        puts("\n");
-
+//        print_matrix(A, N, N);
+//        print_vector(b, N);
+//        print_vector(x_prev, N);
+//        for (int i = 0; i < comm_size + 1; i++) {
+//            printf("%d ", offset_arr[i]);
+//        }
+//        puts("\n");
     }
 
-    int flag = 1;
-    double *matr_chunk;
-    for (int i = 0; i < 100; i++) {
-        if (comm_rank == RANK_ROOT) {
-            for (int other_rank = 0; other_rank < comm_size; other_rank++) {
-                if (other_rank == comm_rank) {
-                    continue;
-                }
+    double *matr_chunk = NULL;
 
-                const size_t other_offset = offset_arr[other_rank];
-                const size_t other_chunk_size = N * (offset_arr[other_rank + 1] - offset_arr[other_rank]);
 
-                MPI_Send((A + other_offset * N), (int) other_chunk_size, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
+    if (comm_rank == RANK_ROOT) {
+        for (int other_rank = 0; other_rank < comm_size; other_rank++) {
+            if (other_rank == comm_rank) {
+                continue;
             }
-            //  const size_t offset = offset_arr[comm_rank];
-            const size_t chunk_size = N * (offset_arr[comm_rank + 1] - offset_arr[comm_rank]);
-            matr_chunk = (double *) calloc(chunk_size, sizeof(double));
-            memcpy(matr_chunk, A, chunk_size * sizeof(double));
-        } else {
-            const size_t chunk_size = N * comm_offset;
-            matr_chunk = (double *) calloc(chunk_size, sizeof(double));
-            MPI_Recv(matr_chunk, (int) chunk_size, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD,
-                     MPI_STATUS_IGNORE);
-        }
 
+            const size_t other_offset = offset_arr[other_rank];
+            const size_t other_chunk_size = N * (offset_arr[other_rank + 1] - offset_arr[other_rank]);
+
+            MPI_Send((A + other_offset * N), (int) other_chunk_size, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
+        }
+        const size_t chunk_size = N * (offset_arr[comm_rank + 1] - offset_arr[comm_rank]);
+        matr_chunk = (double *) calloc(chunk_size, sizeof(double));
+        memcpy(matr_chunk, A, chunk_size * sizeof(double));
+
+    } else {
+        const size_t chunk_size = N * comm_offset;
+        matr_chunk = (double *) calloc(chunk_size, sizeof(double));
+        MPI_Recv(matr_chunk, (int) chunk_size, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    int flag = 1;
+    for (int i = 0; i < 1000 && flag == 1; i++) {
         double *res = (double *) calloc(comm_offset, sizeof(double));
 
-      //  print_vector(x_prev, N);
-      //  printf("%d rank:",comm_rank);
-      //  print_matrix(matr_chunk,offset_arr[comm_rank + 1] - offset_arr[comm_rank],N);
         mult_matr_on_vect(matr_chunk, N, comm_offset, x_prev, N, res);
-
-        //print_vector(matr_chunk,N *( offset_arr[comm_rank + 1] - offset_arr[comm_rank]));
-        //printf("%d rank:",comm_rank);
-        //print_vector(res, comm_offset);
-
 
         if (comm_rank != RANK_ROOT) {
             MPI_Send(res, comm_offset, MPI_DOUBLE, RANK_ROOT, 0, MPI_COMM_WORLD);
 
         } else {
-            // double *res_2 = (double *) calloc(offset_arr[comm_rank + 1] - offset_arr[comm_rank], sizeof(double));
-            // print_vector(res, comm_offset);
-            //printf("%d\n",offset_arr[comm_rank + 1] - offset_arr[comm_rank]);
-            memcpy(x_next, res, (offset_arr[comm_rank + 1] - offset_arr[comm_rank]) * sizeof(double));
-            // print_vector(x_next, N);
+            memcpy(x_next, res, comm_offset * sizeof(double));
             for (int other_rank = 1; other_rank < comm_size; other_rank++) {
                 double *res_2 = calloc(offset_arr[other_rank + 1] - offset_arr[other_rank], sizeof(double));
-                MPI_Recv(res_2, offset_arr[other_rank + 1] - offset_arr[other_rank], MPI_DOUBLE, other_rank,
-                         MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                memcpy(x_next + offset_arr[other_rank] , res_2, (offset_arr[other_rank + 1] - offset_arr[other_rank]) * sizeof(double));
+                MPI_Recv(res_2, offset_arr[other_rank + 1] - offset_arr[other_rank], MPI_DOUBLE, other_rank,MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                memcpy(x_next + offset_arr[other_rank], res_2,(offset_arr[other_rank + 1] - offset_arr[other_rank]) * sizeof(double));
                 free(res_2);
             }
-            //print_vector(x_next, N);
+            //  print_vector(x_next, N);
         }
         if (comm_rank == RANK_ROOT) {
             diff_vector(x_next, N, b, N, x_next);
@@ -226,32 +207,42 @@ int run(int comm_size, int comm_rank) {
             diff_vector(x_prev, N, x_next, N, x_next);
 
             //print_vect(x_next);
+            make_copy(x_next, N, x_prev, N);
 
             double tmp_norm = norm(tmp, N);
-flag =  check(tmp_norm, b_norm);
-             printf("%d %f %f ",flag,tmp_norm,b_norm);
+
+          //  flag =  check(tmp_norm, b_norm);
+            // printf("%d %f %f ",flag,tmp_norm,b_norm);
              if ( ! check(tmp_norm, b_norm)){
-                break;
+                 for (int other_rank = 1; other_rank < comm_size; other_rank++) {
+                     MPI_Send(x_next, N, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
+                 }
+                 //MPI_Abort(MPI_COMM_WORLD,MPI_ERR_OTHER);
+                 break;
             }
-            make_copy(x_next, N, x_prev, N);
-            // print_vector(x_next, N);
-          //  printf("%d rank:",comm_rank);
-            print_vector(x_prev,N);
+
+           // print_vector(x_next, N);
+            //  printf("%d rank:",comm_rank);
+            //print_vector(x_prev,N);
             for (int other_rank = 1; other_rank < comm_size; other_rank++) {
-                MPI_Send(x_next, N, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
+                MPI_Send(x_next, N, MPI_DOUBLE, other_rank, 1, MPI_COMM_WORLD);
             }
+            free(tmp);
         } else {
-            MPI_Recv(x_prev, N, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-           // printf("%d rank:",comm_rank);
-           // print_vector(x_prev,N);
+            MPI_Status status;
+            MPI_Recv(x_prev, N, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            if (status.MPI_TAG == 0)
+                break;
         }
 
+
     }
-    return 1 ;
-//    free(A);
-//    free(b);
-//    free(x_next);
-//    free(x_prev);
+   print_vector(x_prev,N);
+    free(A);
+    free(b);
+    free(x_next);
+    free(x_prev);
+    return 1;
 }
 
 
@@ -266,11 +257,12 @@ int main(int argc, char **argv) {
     if (rank == RANK_ROOT) {
         printf("Comm size: %d\n", size);
     }
+
     clock_t start = clock();
     run(size, rank);
     clock_t end = clock();
 
     MPI_Finalize();
 
-    printf("%ld\n", end - start);
+    printf("Process %d took %.2lfs\n", rank, end - start);
 }
