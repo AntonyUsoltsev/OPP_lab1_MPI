@@ -4,9 +4,9 @@
 #include <math.h>
 #include <time.h>
 
-#define N 5
+#define N 6
 #define t 0.01
-#define eps 0.0001
+#define eps 0.01
 
 void print_matrix(const double *A, const int height, const int width) {
     for (int i = 0; i < height; i++) {
