@@ -6,8 +6,8 @@
 #include <time.h>
 #include <memory.h>
 
-#define N 1000
-#define t 0.0001
+#define N 100
+#define t 0.01
 #define eps 0.01
 #define RANK_ROOT 0
 #define CONTINUE 1
@@ -23,7 +23,14 @@ void print_matrix(const double *A, const int height, const int width) {
     printf("\n");
 }
 
-void print_vector(const double *vect, const int length) {
+void print_vector_int(const int *vect, const int length) {
+    for (int i = 0; i < length; i++) {
+        printf("%d ", vect[i]);
+    }
+    printf("\n");
+}
+
+void print_vector_double(const double *vect, const int length) {
     for (int i = 0; i < length; i++) {
         printf("%lf ", vect[i]);
     }
@@ -105,25 +112,32 @@ int check(double vect_norm, double b_norm) {
     return CONTINUE;
 }
 
-int *set_offset(int size, int matrix_height) {
-    int *offset_arr = calloc(size + 1, sizeof(int));
+int *set_chunk_sizes(int size, int matrix_height) {
+    int *chunk_sizes = calloc(size, sizeof(int));
     if (size >= matrix_height) {
-        for (int i = 0; i < size + 1; i++) {
-            offset_arr[i] = i;
+        for (int i = 0; i < size ; i++) {
+            chunk_sizes[i] = 1;
         }
-        return offset_arr;
+        return chunk_sizes;
     }
     int quot = matrix_height / size;
     int remain = matrix_height % size;
 
-    for (int i = 0; i < size + 1; i++) {
-        if (i == 0) {
-            offset_arr[i] = 0;
-        } else if (i < size - remain + 1) {
-            offset_arr[i] = offset_arr[i - 1] + quot;
+    for (int i = 0; i < size; i++) {
+        if (i < size - remain) {
+            chunk_sizes[i] = quot;
         } else {
-            offset_arr[i] = offset_arr[i - 1] + quot + 1;
+            chunk_sizes[i] = quot + 1;
         }
+    }
+    return chunk_sizes;
+}
+
+int *set_offset(int size, const int *chunk_size_arr) {
+    int *offset_arr = calloc(size, sizeof(int));
+    offset_arr[0] = 0;
+    for (int i = 1; i < size; i++) {
+        offset_arr[i] = offset_arr[i - 1] + chunk_size_arr[i - 1];
     }
     return offset_arr;
 }
@@ -134,80 +148,87 @@ int run(int comm_size, int comm_rank) {
     fill_vector(b, N, (double) (N + 1));
     double b_norm = norm(b, N);
 
-    int *offset_arr = set_offset(comm_size, N);
-    int comm_offset = (offset_arr[comm_rank + 1] - offset_arr[comm_rank]);
+    int *chunk_size_arr = set_chunk_sizes(comm_size, N);
+    int *offset_arr = set_offset(comm_size, chunk_size_arr);
+
+    int comm_chunk_size = chunk_size_arr[comm_rank];
+    if (comm_rank == RANK_ROOT) {
+        print_vector_int(chunk_size_arr, comm_size);
+        print_vector_int(offset_arr,comm_size);
+    }
 
     double *A = NULL;
     double *x_prev = calloc(N, sizeof(double));
     fill_vector(x_prev, N, 0);
 
     double *x_next = calloc(N, sizeof(double));
+
     double *matr_chunk = NULL;
 
     if (comm_rank == RANK_ROOT) {
         A = calloc(N * N, sizeof(double));
         fill_matrix(A, N, N);
-//        print_matrix(A, N, N);
-//        print_vector(b, N);
-//        print_vector(x_prev, N);
-//        for (int i = 0; i < comm_size + 1; i++) {
-//            printf("%d ", offset_arr[i]);
-//        }
-//        puts("\n");
+
         for (int other_rank = 0; other_rank < comm_size; other_rank++) {
             if (other_rank == comm_rank) {
                 continue;
             }
 
             const size_t other_offset = offset_arr[other_rank];
-            const size_t other_chunk_size = N * (offset_arr[other_rank + 1] - offset_arr[other_rank]);
+            const size_t other_chunk_size = N * chunk_size_arr[other_rank];
 
-            MPI_Send((A + other_offset * N), (int) other_chunk_size, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
+            MPI_Send((A + other_offset * N), other_chunk_size, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
         }
-        const size_t chunk_size = N * (offset_arr[comm_rank + 1] - offset_arr[comm_rank]);
+        const size_t chunk_size = N * comm_chunk_size;
         matr_chunk = (double *) calloc(chunk_size, sizeof(double));
         memcpy(matr_chunk, A, chunk_size * sizeof(double));
 
     } else {
-        const size_t chunk_size = N * comm_offset;
+        const size_t chunk_size = N * comm_chunk_size;
         matr_chunk = (double *) calloc(chunk_size, sizeof(double));
         MPI_Recv(matr_chunk, (int) chunk_size, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
-
     int flag = 1;
-    for (int i = 0; i < 1000 && flag == 1; i++) {
-        double *res = (double *) calloc(comm_offset, sizeof(double));
+    while (flag == 1) {
+        double *res = (double *) calloc(comm_chunk_size, sizeof(double));
 
-        mult_matr_on_vect(matr_chunk, N, comm_offset, x_prev, N, res);
+        mult_matr_on_vect(matr_chunk, N, comm_chunk_size, x_prev, N, res);
 
-        if (comm_rank != RANK_ROOT) {
-            MPI_Send(res, comm_offset, MPI_DOUBLE, RANK_ROOT, 0, MPI_COMM_WORLD);
 
-        } else {
-            memcpy(x_next, res, comm_offset * sizeof(double));
+        MPI_Gatherv(res, chunk_size_arr[comm_rank], MPI_DOUBLE, x_next, chunk_size_arr, offset_arr, MPI_DOUBLE, RANK_ROOT, MPI_COMM_WORLD);
 
-            for (int other_rank = 1; other_rank < comm_size; other_rank++) {
-                size_t chunk_size = offset_arr[other_rank + 1] - offset_arr[other_rank];
-                double *res_2 = calloc(chunk_size, sizeof(double));
-                MPI_Recv(res_2, chunk_size, MPI_DOUBLE, other_rank, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                memcpy(x_next + offset_arr[other_rank], res_2,chunk_size * sizeof(double));
-                free(res_2);
-            }
-            //  print_vector(x_next, N);
-        }
+
+        // MPI_Allgatherv(res, comm_chunk_size, MPI_DOUBLE, x_next, int *recvcounts, int *displs, MPI_Datatype recvtype, MPI_Comm comm)
+//        if (comm_rank == RANK_ROOT) {
+//            print_vector(x_next, N);
+//        }
+
+//        if (comm_rank != RANK_ROOT) {
+//            MPI_Send(res, comm_chunk_size, MPI_DOUBLE, RANK_ROOT, 0, MPI_COMM_WORLD);
+//
+//        } else {
+//            memcpy(x_next, res, comm_chunk_size * sizeof(double));
+//            for (int other_rank = 1; other_rank < comm_size; other_rank++) {
+//                size_t other_res_chunk_size = offset_arr[other_rank + 1] - offset_arr[other_rank];
+//                double *res_2 = calloc(other_res_chunk_size, sizeof(double));
+//
+//                MPI_Recv(res_2, other_res_chunk_size, MPI_DOUBLE, other_rank,MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//                memcpy(x_next + offset_arr[other_rank], res_2,other_res_chunk_size * sizeof(double));
+//                free(res_2);
+//            }
+//            //  print_vector(x_next, N);
+//        }
         if (comm_rank == RANK_ROOT) {
             diff_vector(x_next, N, b, N, x_next);
 
-            double *tmp = calloc(N, sizeof(double));
-            make_copy(x_next, N, tmp, N);
-            double tmp_norm = norm(tmp, N);
-            if (!check(tmp_norm, b_norm)) {
+            double Ax_b_norm = norm(x_next, N);
+
+            if (!check(Ax_b_norm, b_norm)) {
                 for (int other_rank = 1; other_rank < comm_size; other_rank++) {
-                    MPI_Send(x_next, N, MPI_DOUBLE, other_rank, EXIT, MPI_COMM_WORLD);
+                    MPI_Send(x_prev, N, MPI_DOUBLE, other_rank, EXIT, MPI_COMM_WORLD);
                 }
                 break;
             }
-            free(tmp);
 
             mult_vect_on_num(x_next, N, t, x_next);
             diff_vector(x_prev, N, x_next, N, x_next);
@@ -217,7 +238,6 @@ int run(int comm_size, int comm_rank) {
                 MPI_Send(x_next, N, MPI_DOUBLE, other_rank, CONTINUE, MPI_COMM_WORLD);
             }
 
-
         } else {
             MPI_Status status;
             MPI_Recv(x_prev, N, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -225,12 +245,15 @@ int run(int comm_size, int comm_rank) {
                 break;
         }
 
+
     }
-    print_vector(x_prev, N);
+    printf("Process № %d: ", comm_rank);
+    print_vector_double(x_prev, N);
     free(A);
     free(b);
     free(x_next);
     free(x_prev);
+    free(matr_chunk);
     return 1;
 }
 
