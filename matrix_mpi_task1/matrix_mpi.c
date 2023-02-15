@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include "mpi.h"
-#include <math.h>
-#include <time.h>
 #include <memory.h>
 
 #define N 200
@@ -68,7 +65,6 @@ mult_matr_on_vect(const double *matr_chunck, const int width, const int height, 
         }
         res[i] = summ;
     }
-    // usleep(1000 * 10);
 }
 
 void diff_vector(const double *vect_1, const int len_1, const double *vect_2, const int len_2, double *res) {
@@ -100,7 +96,6 @@ double norm(const double *vect, const int vect_len) {
     for (int i = 0; i < vect_len; i++) {
         summ += vect[i] * vect[i];
     }
-    // summ = sqrt(summ);
     return summ;
 
 }
@@ -229,8 +224,10 @@ int run(int comm_size, int comm_rank) {
 
 
     }
-    printf("Process № %d: ", comm_rank);
-    print_vector_double(x_prev, N);
+    if (comm_rank == RANK_ROOT) {
+        printf("Process № %d: ", comm_rank);
+        print_vector_double(x_prev, N);
+    }
     free(A);
     free(b);
     free(x_next);
@@ -258,5 +255,5 @@ int main(int argc, char **argv) {
 
     MPI_Finalize();
 
-    printf("Process %d took %.2lfs\n", rank, end_time - start_time);
+    printf("Process %d took %.4lfs\n", rank, end_time - start_time);
 }
