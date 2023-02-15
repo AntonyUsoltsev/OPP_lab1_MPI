@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #PBS -l walltime=00:02:00
-#PBS -l select=1:ncpus=1:mpiprocs=1:mem=100000m,place=scatter
+#PBS -l select=1:ncpus=1:mpiprocs=1:mem=1000m,place=scatter
 #PBS -m n
 #PBS -o out.txt
 #PBS -e err.txt
@@ -20,4 +20,4 @@ cat $PBS_NODEFILE
 echo "Using mpirun at `which mpirun`"
 echo "Running $MPI_NP MPI processes"
 
-mpirun -machinefile $PBS_NODEFILE -np $MPI_NP ./mpi_matrix
+mpirun -machinefile $PBS_NODEFILE -np $MPI_NP ./matrix_mpi
