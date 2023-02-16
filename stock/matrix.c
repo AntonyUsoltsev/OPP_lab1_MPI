@@ -4,9 +4,9 @@
 #include <math.h>
 #include <time.h>
 
-#define N 6
-#define t 0.01
-#define eps 0.01
+#define N 10000
+#define t 0.00001f
+#define eps 0.00001f
 
 void print_matrix(const double *A, const int height, const int width) {
     for (int i = 0; i < height; i++) {
@@ -115,14 +115,14 @@ int main(int argc, char **argv) {
 
     fill_vector(b, N, (double) (N + 1));
     double b_norm = norm(b, N);
-    print_matrix(A, N, N);
+   // print_matrix(A, N, N);
     //   print_vect(b);
 
     double *x_prev = calloc(N, sizeof(double));
     fill_vector(x_prev, N, 0);
 
     double *x_next = calloc(N, sizeof(double));
-    double *tmp = calloc(N, sizeof(double));
+    //double *tmp = calloc(N, sizeof(double));
     // print_vect(x_prev);
 
     int flag = 1;
@@ -135,7 +135,10 @@ int main(int argc, char **argv) {
         diff_vector(x_next, N, b, N, x_next);
         //  print_vect(x_next);
 
-        make_copy(x_next, N, tmp, N);
+        double tmp_norm = norm(x_next, N);
+        flag = check(tmp_norm, b_norm);
+
+        //make_copy(x_next, N, tmp, N);
 
         mult_vect_on_num(x_next, N, t, x_next);
         // print_vect(x_next);
@@ -144,13 +147,12 @@ int main(int argc, char **argv) {
 
         //print_vect(x_next);
 
-        double tmp_norm = norm(tmp, N);
-        flag = check(tmp_norm, b_norm);
+
         make_copy(x_next, N, x_prev, N);
     }
     clock_t end = clock();
 
-    printf("%ld\n", end - start);
-    print_vector(x_next, N);
+    printf("%ld sec\n",( end - start)/CLOCKS_PER_SEC);
+  //  print_vector(x_next, N);
 
 }
