@@ -4,32 +4,13 @@
 #include <memory.h>
 #include <stdbool.h>
 
-#define N 15000
+#define N 16500
 #define t 0.00001f
 #define eps 0.00001f
 
 #define RANK_ROOT 0
 #define CONTINUE 1
 #define EXIT 0
-
-double *create_matrix();
-
-void print_matrix(const double *A, const int height, const int width) {
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            printf("%lf ", A[i * width + j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
-void print_vector_int(const int *vect, const int length) {
-    for (int i = 0; i < length; i++) {
-        printf("%d ", vect[i]);
-    }
-    printf("\n");
-}
 
 void print_vector_double(const double *vect, const int length) {
     for (int i = 0; i < length; i++) {
@@ -55,10 +36,15 @@ void fill_matrix(double *A, const int height, const int width) {
     }
 }
 
+double *create_matrix() {
+    unsigned long long matr_size = (unsigned long long) N * N;
+    double *A = calloc(matr_size, sizeof(double));
+    fill_matrix(A, N, N);
+    return A;
+}
 
-void
-mult_matr_on_vect(const double *matr_chunck, const int width, const int height, const double *vect, const int vect_len,
-                  double *res) {
+void mult_matr_on_vect(const double *matr_chunck, const int width, const int height, const double *vect,
+                       const int vect_len, double *res) {
     if (width != vect_len) {
         return;
     }
@@ -151,7 +137,6 @@ double *send_matrix_from_root(int comm_rank, int comm_size, int comm_chunk_size,
             if (other_rank == comm_rank) {
                 continue;
             }
-
             const size_t other_offset = offset_arr[other_rank];
             const size_t other_chunk_size = N * chunk_size_arr[other_rank];
 
@@ -168,14 +153,6 @@ double *send_matrix_from_root(int comm_rank, int comm_size, int comm_chunk_size,
         return matr_chunk;
     }
 }
-
-double *create_matrix() {
-    unsigned long long matr_size = (unsigned long long) N * N;
-    double *A = calloc(matr_size, sizeof(double));
-    fill_matrix(A, N, N);
-    return A;
-}
-
 
 int run(int comm_size, int comm_rank) {
 
@@ -226,8 +203,6 @@ int run(int comm_size, int comm_rank) {
 
         if (comm_rank == RANK_ROOT) {
 
-           // double global_Ax_b_norm = norm(x_next,N);
-
             if (!check_eps(global_Ax_b_norm, global_b_norm)) {
                 for (int other_rank = 1; other_rank < comm_size; other_rank++) {
                     MPI_Send(x_prev, N, MPI_DOUBLE, other_rank, EXIT, MPI_COMM_WORLD);
@@ -253,8 +228,7 @@ int run(int comm_size, int comm_rank) {
 
     }
     if (comm_rank == RANK_ROOT) {
-        printf("Process № %d: ", comm_rank);
-        print_vector_double(x_prev, N);
+        printf("Process № %d: %lf\n", comm_rank, x_prev[0]);
     }
     free(A);
     free(b);

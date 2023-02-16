@@ -1,21 +1,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
-#include <math.h>
 #include <time.h>
 
-#define N 10000
+#define N 16500
 #define t 0.00001f
 #define eps 0.00001f
 
-void print_matrix(const double *A, const int height, const int width) {
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            printf("%lf ", A[i * width + j]);
+#define пусто void
+#define дабл double
+#define конст const
+#define интегер int
+#define матрицу_напечатай print_matrix
+#define печать printf
+#define цикл for
+#define и i
+#define жи j
+#define энтер "\n"
+
+
+пусто матрицу_напечатай(конст дабл *A, конст интегер height, конст интегер width) {
+    цикл (интегер и = 0; и < height; и++) {
+        цикл (интегер жи = 0; жи < width; жи++) {
+            печать("%lf ", A[и * width + жи]);
         }
-        printf("\n");
+        печать(энтер);
     }
-    printf("\n");
+    печать(энтер);
 }
 
 void print_vector(const double *vect, const int length) {
@@ -93,13 +104,13 @@ double norm(const double *vect, const int vect_len) {
     for (int i = 0; i < vect_len; i++) {
         summ += vect[i] * vect[i];
     }
-    summ = sqrt(summ);
+    //summ = sqrt(summ);
     return summ;
 
 }
 
 int check(double vect_norm, double b_norm) {
-    if (vect_norm / b_norm < eps) {
+    if (vect_norm / b_norm < eps*eps) {
         return 0;
     }
     return 1;
@@ -115,7 +126,7 @@ int main(int argc, char **argv) {
 
     fill_vector(b, N, (double) (N + 1));
     double b_norm = norm(b, N);
-   // print_matrix(A, N, N);
+    //матрицу_напечатай(A, N, N);
     //   print_vect(b);
 
     double *x_prev = calloc(N, sizeof(double));
