@@ -3,9 +3,9 @@
 #include "mpi.h"
 #include <memory.h>
 
-#define N 200
-#define t 0.0000001f
-#define eps 0.0000001f
+#define N 6
+#define t 0.00001f
+#define eps 0.0001f
 #define RANK_ROOT 0
 #define CONTINUE 1
 #define EXIT 0
@@ -58,9 +58,13 @@ mult_matr_on_vect(const double *matr_chunck, const int width, const int height, 
     if (width != vect_len) {
         return;
     }
+    puts("hellooo343434");
+
     for (int i = 0; i < height; i++) {
+
         double summ = 0;
         for (int j = 0; j < width; j++) {
+            printf("(%d,%d)", i, j);
             summ += matr_chunck[i * width + j] * vect[j];
         }
         res[i] = summ;
@@ -137,14 +141,44 @@ int *set_offset(int size, const int *chunk_size_arr) {
     return offset_arr;
 }
 
+void send_matrix_from_root(int comm_rank, int comm_size, int comm_chunk_size, double *A, double *matr_chunk,
+                           int *chunk_size_arr, int *offset_arr) {
+    if (comm_rank == RANK_ROOT) {
+        unsigned long long matrix_size = (unsigned long long) N * N;
+        A = calloc(matrix_size, sizeof(double));
+        fill_matrix(A, N, N);
+        print_matrix(A, N, N);
+
+        for (int other_rank = 0; other_rank < comm_size; other_rank++) {
+            if (other_rank == comm_rank) {
+                continue;
+            }
+
+            const size_t other_offset = offset_arr[other_rank];
+            const size_t other_chunk_size = N * chunk_size_arr[other_rank];
+
+            MPI_Send((A + other_offset * N), other_chunk_size, MPI_DOUBLE, other_rank, 0, MPI_COMM_WORLD);
+        }
+        const size_t chunk_size = N * comm_chunk_size;
+        matr_chunk = (double *) calloc(chunk_size, sizeof(double));
+        memcpy(matr_chunk, A, chunk_size * sizeof(double));
+
+    } else {
+
+        const size_t chunk_size = N * comm_chunk_size;
+        matr_chunk = (double *) calloc(chunk_size, sizeof(double));
+        MPI_Recv(matr_chunk, (int) chunk_size, MPI_DOUBLE, RANK_ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+}
+
 
 int run(int comm_size, int comm_rank) {
-
 
     int *chunk_size_arr = set_chunk_sizes(comm_size, N);
     int *offset_arr = set_offset(comm_size, chunk_size_arr);
 
     int comm_chunk_size = chunk_size_arr[comm_rank];
+
     if (comm_rank == RANK_ROOT) {
         print_vector_int(chunk_size_arr, comm_size);
         print_vector_int(offset_arr, comm_size);
@@ -154,6 +188,7 @@ int run(int comm_size, int comm_rank) {
     double local_b_norm = norm(b, comm_chunk_size);
     double global_b_norm = 0;
     MPI_Reduce(&local_b_norm, &global_b_norm, 1, MPI_DOUBLE, MPI_SUM, RANK_ROOT, MPI_COMM_WORLD);
+
     double *A = NULL;
     double *x_prev = calloc(N, sizeof(double));
     fill_vector(x_prev, N, 0);
@@ -162,8 +197,18 @@ int run(int comm_size, int comm_rank) {
 
     double *matr_chunk = NULL;
 
+    //send_matrix_from_root(comm_rank, comm_size, comm_chunk_size, A, matr_chunk, chunk_size_arr, offset_arr);
+
+//    if (A == NULL) {
+//        puts("NOTNULL");
+//    }
+//
+//    if (RANK_ROOT == comm_rank) {
+//        puts("hellooo");
+//        print_matrix(A, N, N);
+//    }
     if (comm_rank == RANK_ROOT) {
-        unsigned long long matr_size = (unsigned long long)N*N;
+        unsigned long long matr_size = (unsigned long long) N * N;
         A = calloc(matr_size, sizeof(double));
         fill_matrix(A, N, N);
 
@@ -194,7 +239,8 @@ int run(int comm_size, int comm_rank) {
 
         diff_vector(res, comm_chunk_size, b, comm_chunk_size, res);
 
-        MPI_Gatherv(res, chunk_size_arr[comm_rank], MPI_DOUBLE, x_next, chunk_size_arr, offset_arr, MPI_DOUBLE, RANK_ROOT, MPI_COMM_WORLD);
+        MPI_Gatherv(res, chunk_size_arr[comm_rank], MPI_DOUBLE, x_next, chunk_size_arr, offset_arr, MPI_DOUBLE,
+                    RANK_ROOT, MPI_COMM_WORLD);
 
         if (comm_rank == RANK_ROOT) {
 
