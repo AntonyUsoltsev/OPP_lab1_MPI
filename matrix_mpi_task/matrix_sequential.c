@@ -7,35 +7,6 @@
 #define t 0.00001f
 #define eps 0.00001f
 
-#define пусто void
-#define дабл double
-#define конст const
-#define интегер int
-#define матрицу_напечатай print_matrix
-#define печать printf
-#define цикл for
-#define и i
-#define жи j
-#define энтер "\n"
-
-
-пусто матрицу_напечатай(конст дабл *A, конст интегер height, конст интегер width) {
-    цикл (интегер и = 0; и < height; и++) {
-        цикл (интегер жи = 0; жи < width; жи++) {
-            печать("%lf ", A[и * width + жи]);
-        }
-        печать(энтер);
-    }
-    печать(энтер);
-}
-
-void print_vector(const double *vect, const int length) {
-    for (int i = 0; i < length; i++) {
-        printf("%lf ", vect[i]);
-    }
-    printf("\n");
-}
-
 void fill_vector(double *vector, const int length, const double fill_value) {
     for (size_t i = 0; i < length; i++) {
         vector[i] = fill_value;
@@ -53,13 +24,6 @@ void fill_matrix(double *A, const int height, const int width) {
     }
 }
 
-//void transposition(const float *A, float *A_t) {
-//    for (int i = 0; i < N; i++) {
-//        for (int j = 0; j < N; j++) {
-//            A_t[i * N + j] = A[j * N + i];
-//        }
-//    }
-//}
 
 void mult_matr_on_vect(const double *A, const int height, const int width, const double *vect, const int vect_len,
                        double *res) {
@@ -117,53 +81,30 @@ int check(double vect_norm, double b_norm) {
 }
 
 int main(int argc, char **argv) {
-
-
     double *A = calloc(N * N, sizeof(double));
     double *b = calloc(N, sizeof(double));
-
     fill_matrix(A, N, N);
-
     fill_vector(b, N, (double) (N + 1));
-    double b_norm = norm(b, N);
-    //матрицу_напечатай(A, N, N);
-    //   print_vect(b);
 
+    double b_norm = norm(b, N);
     double *x_prev = calloc(N, sizeof(double));
     fill_vector(x_prev, N, 0);
 
     double *x_next = calloc(N, sizeof(double));
-    //double *tmp = calloc(N, sizeof(double));
-    // print_vect(x_prev);
-
     int flag = 1;
-    int size, rank;
+
     clock_t start = clock();
     while (flag) {
         mult_matr_on_vect(A, N, N, x_prev, N, x_next);
-        //  print_vect(x_next);
-
         diff_vector(x_next, N, b, N, x_next);
-        //  print_vect(x_next);
-
         double tmp_norm = norm(x_next, N);
         flag = check(tmp_norm, b_norm);
-
-        //make_copy(x_next, N, tmp, N);
-
         mult_vect_on_num(x_next, N, t, x_next);
-        // print_vect(x_next);
-
         diff_vector(x_prev, N, x_next, N, x_next);
-
-        //print_vect(x_next);
-
-
         make_copy(x_next, N, x_prev, N);
     }
     clock_t end = clock();
-
+    printf ("%d\n",x_prev[0]);
     printf("%ld sec\n",( end - start)/CLOCKS_PER_SEC);
-  //  print_vector(x_next, N);
-
+    return 0;
 }

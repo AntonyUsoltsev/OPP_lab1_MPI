@@ -100,12 +100,6 @@ int check_eps(double vect_norm, double b_norm) {
 
 int *set_chunk_sizes(int size, int matrix_height) {
     int *chunk_sizes = calloc(size, sizeof(int));
-    if (size >= matrix_height) {
-        for (int i = 0; i < size; i++) {
-            chunk_sizes[i] = 1;
-        }
-        return chunk_sizes;
-    }
     int quot = matrix_height / size;
     int remain = matrix_height % size;
 
@@ -238,7 +232,6 @@ int run(int comm_size, int comm_rank) {
     return 1;
 }
 
-
 int main(int argc, char **argv) {
 
     int size, rank;
@@ -250,7 +243,9 @@ int main(int argc, char **argv) {
     if (rank == RANK_ROOT) {
         printf("Comm size: %d\n", size);
     }
-
+    if (size > N) {
+        size = N;
+    }
     const double start_time = MPI_Wtime();
     run(size, rank);
     const double end_time = MPI_Wtime();
