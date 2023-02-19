@@ -155,10 +155,6 @@ int run(int comm_size, int comm_rank) {
 
     int comm_chunk_size = chunk_size_arr[comm_rank];
 
-    if (comm_rank == RANK_ROOT) {
-        print_vector_int(chunk_size_arr, comm_size);
-        print_vector_int(offset_arr, comm_size);
-    }
     double *b = calloc(comm_chunk_size, sizeof(double));
     fill_vector(b, comm_chunk_size, (double) (N + 1));
 
@@ -222,7 +218,7 @@ int run(int comm_size, int comm_rank) {
 
     }
     if (comm_rank == RANK_ROOT) {
-        printf("Process № %d: %lf\n", comm_rank, x_prev[0]);
+        printf("Process № %d x[0] value is: %lf\n", comm_rank, x_prev[0]);
     }
     free(A);
     free(b);
