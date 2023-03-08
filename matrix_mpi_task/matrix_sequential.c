@@ -3,7 +3,7 @@
 #include <memory.h>
 #include <time.h>
 
-#define N 16500
+#define N 16
 #define t 0.00001f
 #define eps 0.00001f
 
